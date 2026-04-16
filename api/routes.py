@@ -22,7 +22,7 @@ from storage.sqlite_store import get_sqlite_store
 router = APIRouter()
 
 # ── 认证依赖 ────────────────────────────────────────────────────────────────
-async def verify_api_key(x_api_key: str = Header(..., alias="X-API-Key")) -> str:
+async def verify_api_key(x_api_key: str = Header(default="", alias="X-API-Key")) -> str:
     settings = get_settings()
     if not settings.api_key:
         # 未配置 API Key 时跳过认证（开发模式）
