@@ -42,10 +42,19 @@ def escape_html(text: str) -> str:
 LOG_FILE = Path("data/app.log")
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
+# 配置所有模块的日志
+for logger_name in ["api", "ai_client", "test_generation", "analysis"]:
+    _l = logging.getLogger(logger_name)
+    _l.setLevel(logging.DEBUG)
+    _h = logging.FileHandler(LOG_FILE, encoding="utf-8")
+    _h.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] %(message)s"))
+    if not _l.handlers:
+        _l.addHandler(_h)
+
 _logger = logging.getLogger("api")
 _logger.setLevel(logging.DEBUG)
 _handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
-_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] %(message)s"))
 if not _logger.handlers:
     _logger.addHandler(_handler)
 
@@ -150,12 +159,15 @@ async def upload_document(file: UploadFile = File(...), _auth: str = Depends(ver
     responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def generate_test_cases(document_id: str, _auth: str = Depends(verify_api_key)) -> GenerationResponse:
+    _logger.info(f"[GENERATE] Starting for document_id: {document_id}")
     _, _, retrieval_service, generation_service = _build_services()
     store = get_sqlite_store()
 
     document = store.get_document(document_id)
+    _logger.info(f"[GENERATE] Document found: {document is not None}")
 
     artifact = store.get_analysis(document_id)
+    _logger.info(f"[GENERATE] Analysis artifact found: {artifact is not None}")
 
     if document is None:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -164,10 +176,13 @@ async def generate_test_cases(document_id: str, _auth: str = Depends(verify_api_
         raise HTTPException(status_code=404, detail="Analysis artifact not found")
 
     try:
+        _logger.info(f"[GENERATE] Retrieving similar context...")
         retrieved_context = retrieval_service.retrieve_similar_context(artifact)
+        _logger.info(f"[GENERATE] Retrieved {len(retrieved_context)} context items")
 
-        _log(document_id, "GENERATE", "开始调用 AI 生成测试用例")
+        _logger.info(f"[GENERATE] Calling AI generation service...")
         response = generation_service.generate(artifact, retrieved_context)
+        _logger.info(f"[GENERATE] Generation complete, {len(response.test_cases)} test cases")
 
         store.replace_test_cases(document_id, response.test_cases)
         store.mark_document_status(document_id, "generated")

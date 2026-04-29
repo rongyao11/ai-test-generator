@@ -286,7 +286,7 @@ def fetch_analysis(document_id: str) -> dict | None:
 
 def generate_test_cases(document_id: str) -> dict | None:
     try:
-        r = requests.post(f"{API_BASE}/documents/{document_id}/generate", headers=_get_api_headers(), timeout=600)
+        r = requests.post(f"{API_BASE}/documents/{document_id}/generate", headers=_get_api_headers(), timeout=1200)
         r.raise_for_status()
         return r.json()
     except requests.HTTPError as exc:
@@ -532,20 +532,20 @@ elif st.session_state["step"] == "confirm":
         else:
             st.markdown('<div class="analysis-section"><i>（无待澄清问题）</i></div>', unsafe_allow_html=True)
 
-    # 只有在有有效分析结果时才显示tabs和生成按钮
+        # 只有在有有效分析结果时才显示tabs和生成按钮
     if artifact and artifact.get("summary"):
         st.divider()
         col_gen, col_reupload = st.columns(2)
         with col_gen:
             if st.button("✅ 确认无误，生成测试用例", type="primary", use_container_width=True):
-                progress_bar = st.progress(10, text="正在请求生成（结合历史知识库）...")
-                gen_result = generate_test_cases(doc_id)
+                with st.spinner("AI 正在生成测试用例，请耐心等待（预计 5-15 分钟）..."):
+                    gen_result = generate_test_cases(doc_id)
                 if gen_result is not None:
                     st.session_state["test_cases"] = gen_result
                     st.session_state["step"] = "results"
                     st.rerun()
                 else:
-                    progress_bar.empty()
+                    st.error("生成失败，请重试")
         with col_reupload:
             if st.button("📤 重新上传", use_container_width=True):
                 st.session_state["step"] = "upload"
